@@ -2,6 +2,7 @@
 
 A Minecraft Fabric mod that places buttons on all spawnable surfaces within a radius to prevent mob spawning. Perfect for Wither skeleton farms in the Nether.
 
+[![Modrinth](https://img.shields.io/modrinth/dt/nether-spawnproof?logo=modrinth&label=Modrinth)](https://modrinth.com/mod/nether-spawnproof)
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.11-green)
 ![Fabric](https://img.shields.io/badge/Mod%20Loader-Fabric-blue)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
