@@ -1,0 +1,14 @@
+{
+  "projectPath": ":",
+  "classpaths": {
+    "test": [
+      "/mnt/d/minecraft/SpawnProof_Mod/build/classes/java/test",
+      "/mnt/d/minecraft/SpawnProof_Mod/build/resources/test"
+    ],
+    "main": [
+      "/mnt/d/minecraft/SpawnProof_Mod/build/classes/java/main",
+      "/mnt/d/minecraft/SpawnProof_Mod/build/resources/main",
+      "/mnt/d/minecraft/SpawnProof_Mod/build/devlibs/spawnproof-1.0.0-dev.jar"
+    ]
+  }
+}
