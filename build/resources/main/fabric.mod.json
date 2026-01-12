@@ -1,7 +1,7 @@
 {
     "schemaVersion": 1,
     "id": "spawnproof",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "name": "SpawnProof",
     "description": "Spawn-proof large areas by placing stone buttons on all spawnable surfaces. Perfect for Nether farms.",
     "authors": ["manchesterjm"],
