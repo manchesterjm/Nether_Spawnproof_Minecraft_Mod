@@ -4,8 +4,10 @@
     "version": "1.0.0",
     "name": "SpawnProof",
     "description": "Spawn-proof large areas by placing stone buttons on all spawnable surfaces. Perfect for Nether farms.",
-    "authors": ["Claude Code"],
-    "contact": {},
+    "authors": ["manchesterjm"],
+    "contact": {
+        "sources": "https://github.com/manchesterjm/Nether_Spawnproof_Minecraft_Mod"
+    },
     "license": "MIT",
     "icon": "assets/spawnproof/icon.png",
     "environment": "*",
