@@ -1,7 +1,7 @@
 {
     "schemaVersion": 1,
     "id": "spawnproof",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "name": "SpawnProof",
     "description": "Spawn-proof large areas by placing stone buttons on all spawnable surfaces. Perfect for Nether farms.",
     "authors": ["manchesterjm"],
@@ -18,7 +18,7 @@
     "depends": {
         "fabricloader": ">=0.18.0",
         "minecraft": ">=1.21.11",
-        "java": ">=21",
+        "java": ">=25",
         "fabric-api": "*"
     }
 }

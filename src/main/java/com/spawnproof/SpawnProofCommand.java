@@ -3,25 +3,24 @@ package com.spawnproof;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.ButtonBlock;
-import net.minecraft.block.enums.BlockFace;
-import net.minecraft.command.permission.Permission;
-import net.minecraft.command.permission.PermissionLevel;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.ClickEvent;
-import net.minecraft.text.HoverEvent;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ButtonBlock;
+import net.minecraft.world.level.block.state.properties.AttachFace;
+import net.minecraft.server.permissions.Permissions;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.Component;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 
 /**
  * Command handler for the /spawnproof command.
@@ -46,7 +45,7 @@ import net.minecraft.util.math.Direction;
  *   <li><b>Fast Mode:</b> 200 buttons/second - single-player only</li>
  * </ul>
  *
- * @author Claude Code
+ * @author manchesterjm
  * @version 1.0.0
  * @see SpawnProofTask
  */
@@ -77,24 +76,24 @@ public class SpawnProofCommand {
      *
      * @param dispatcher The server's command dispatcher
      */
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
-        dispatcher.register(CommandManager.literal("spawnproof")
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        dispatcher.register(Commands.literal("spawnproof")
             .executes(context -> showPreview(context, DEFAULT_RADIUS))
-            .then(CommandManager.literal("help")
+            .then(Commands.literal("help")
                 .executes(SpawnProofCommand::executeHelp)
             )
-            .then(CommandManager.literal("stop")
+            .then(Commands.literal("stop")
                 .executes(SpawnProofCommand::executeStop)
             )
-            .then(CommandManager.literal("confirm")
-                .then(CommandManager.argument("radius", IntegerArgumentType.integer(MIN_RADIUS, MAX_RADIUS))
+            .then(Commands.literal("confirm")
+                .then(Commands.argument("radius", IntegerArgumentType.integer(MIN_RADIUS, MAX_RADIUS))
                     .executes(context -> executeConfirm(context, IntegerArgumentType.getInteger(context, "radius"), false))
-                    .then(CommandManager.literal("fast")
+                    .then(Commands.literal("fast")
                         .executes(context -> executeConfirm(context, IntegerArgumentType.getInteger(context, "radius"), true))
                     )
                 )
             )
-            .then(CommandManager.argument("radius", IntegerArgumentType.integer(MIN_RADIUS, MAX_RADIUS))
+            .then(Commands.argument("radius", IntegerArgumentType.integer(MIN_RADIUS, MAX_RADIUS))
                 .executes(context -> showPreview(context, IntegerArgumentType.getInteger(context, "radius")))
             )
         );
@@ -111,33 +110,32 @@ public class SpawnProofCommand {
      * @param radius The radius to spawn-proof
      * @return 1 on success, 0 on failure
      */
-    private static int showPreview(CommandContext<ServerCommandSource> context, int radius) {
-        ServerCommandSource source = context.getSource();
+    private static int showPreview(CommandContext<CommandSourceStack> context, int radius) {
+        CommandSourceStack source = context.getSource();
 
         // Validate: must be run by a player
-        if (!source.isExecutedByPlayer()) {
-            source.sendError(Text.literal("This command must be run by a player"));
+        if (!source.isPlayer()) {
+            source.sendFailure(Component.literal("This command must be run by a player"));
             return 0;
         }
 
-        ServerPlayerEntity player = source.getPlayer();
+        ServerPlayer player = source.getPlayer();
         if (player == null) {
-            source.sendError(Text.literal("Could not find player"));
+            source.sendFailure(Component.literal("Could not find player"));
             return 0;
         }
 
         // Check for existing active task
         if (SpawnProofTask.hasActiveTask(player)) {
-            source.sendError(Text.literal("You already have a spawnproof task running! Use /spawnproof stop to cancel it."));
+            source.sendFailure(Component.literal("You already have a spawnproof task running! Use /spawnproof stop to cancel it."));
             return 0;
         }
 
         // Determine game mode
-        boolean isCreativeMode = source.getPermissions().hasPermission(
-            new Permission.Level(PermissionLevel.GAMEMASTERS));
+        boolean isCreativeMode = source.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER);
 
         // Scan for spawnable blocks
-        source.sendFeedback(() -> Text.literal("§eScanning area for spawnable blocks..."), false);
+        source.sendSuccess(() -> Component.literal("§eScanning area for spawnable blocks..."), false);
         int spawnableBlocks = countSpawnableBlocks(player, radius);
         int stacks = spawnableBlocks / BUTTONS_PER_STACK;
         int remainder = spawnableBlocks % BUTTONS_PER_STACK;
@@ -147,74 +145,74 @@ public class SpawnProofCommand {
         int fastTimeSeconds = spawnableBlocks / 200;
 
         // Show header
-        source.sendFeedback(() -> Text.literal("§6=== SpawnProof Preview ==="), false);
-        source.sendFeedback(() -> Text.literal("§7Radius: §f" + radius + " blocks"), false);
+        source.sendSuccess(() -> Component.literal("§6=== SpawnProof Preview ==="), false);
+        source.sendSuccess(() -> Component.literal("§7Radius: §f" + radius + " blocks"), false);
 
         if (isCreativeMode) {
             // OP Mode
-            source.sendFeedback(() -> Text.literal("§7Mode: §6OP Mode §7(unlimited buttons)"), false);
-            source.sendFeedback(() -> Text.literal(""), false);
-            source.sendFeedback(() -> Text.literal("§7Spawnable blocks found: §f" + spawnableBlocks), false);
-            source.sendFeedback(() -> Text.literal("§7  (" + formatStacks(stacks, remainder) + ")"), false);
+            source.sendSuccess(() -> Component.literal("§7Mode: §6OP Mode §7(unlimited buttons)"), false);
+            source.sendSuccess(() -> Component.literal(""), false);
+            source.sendSuccess(() -> Component.literal("§7Spawnable blocks found: §f" + spawnableBlocks), false);
+            source.sendSuccess(() -> Component.literal("§7  (" + formatStacks(stacks, remainder) + ")"), false);
         } else {
             // Survival Mode - count ALL button types
             int buttonsInInventory = countAllButtons(player);
             int inventoryStacks = buttonsInInventory / BUTTONS_PER_STACK;
             int inventoryRemainder = buttonsInInventory % BUTTONS_PER_STACK;
 
-            source.sendFeedback(() -> Text.literal("§7Mode: §eSurvival Mode §7(uses inventory)"), false);
-            source.sendFeedback(() -> Text.literal(""), false);
-            source.sendFeedback(() -> Text.literal("§7Buttons needed: §f" + spawnableBlocks), false);
-            source.sendFeedback(() -> Text.literal("§7  (" + formatStacks(stacks, remainder) + ")"), false);
-            source.sendFeedback(() -> Text.literal(""), false);
-            source.sendFeedback(() -> Text.literal("§7Buttons in inventory: §f" + buttonsInInventory + " §7(any type)"), false);
-            source.sendFeedback(() -> Text.literal("§7  (" + formatStacks(inventoryStacks, inventoryRemainder) + ")"), false);
+            source.sendSuccess(() -> Component.literal("§7Mode: §eSurvival Mode §7(uses inventory)"), false);
+            source.sendSuccess(() -> Component.literal(""), false);
+            source.sendSuccess(() -> Component.literal("§7Buttons needed: §f" + spawnableBlocks), false);
+            source.sendSuccess(() -> Component.literal("§7  (" + formatStacks(stacks, remainder) + ")"), false);
+            source.sendSuccess(() -> Component.literal(""), false);
+            source.sendSuccess(() -> Component.literal("§7Buttons in inventory: §f" + buttonsInInventory + " §7(any type)"), false);
+            source.sendSuccess(() -> Component.literal("§7  (" + formatStacks(inventoryStacks, inventoryRemainder) + ")"), false);
 
             if (buttonsInInventory < spawnableBlocks) {
                 int shortage = spawnableBlocks - buttonsInInventory;
                 int shortageStacks = shortage / BUTTONS_PER_STACK;
                 int shortageRemainder = shortage % BUTTONS_PER_STACK;
 
-                source.sendFeedback(() -> Text.literal(""), false);
-                source.sendFeedback(() -> Text.literal("§c⚠ You may be short by ~" + shortage + " buttons"), false);
-                source.sendFeedback(() -> Text.literal("§7  (" + formatStacks(shortageStacks, shortageRemainder) + ")"), false);
-                source.sendFeedback(() -> Text.literal("§7  Tip: Warped/Crimson buttons don't burn in the Nether!"), false);
+                source.sendSuccess(() -> Component.literal(""), false);
+                source.sendSuccess(() -> Component.literal("§c⚠ You may be short by ~" + shortage + " buttons"), false);
+                source.sendSuccess(() -> Component.literal("§7  (" + formatStacks(shortageStacks, shortageRemainder) + ")"), false);
+                source.sendSuccess(() -> Component.literal("§7  Tip: Warped/Crimson buttons don't burn in the Nether!"), false);
             } else {
-                source.sendFeedback(() -> Text.literal(""), false);
-                source.sendFeedback(() -> Text.literal("§a✓ You have enough buttons!"), false);
+                source.sendSuccess(() -> Component.literal(""), false);
+                source.sendSuccess(() -> Component.literal("§a✓ You have enough buttons!"), false);
             }
         }
 
         // Show time estimates
-        source.sendFeedback(() -> Text.literal(""), false);
-        source.sendFeedback(() -> Text.literal("§7Estimated time:"), false);
-        source.sendFeedback(() -> Text.literal("§7  Safe mode: §f" + formatTime(safeTimeSeconds)), false);
-        source.sendFeedback(() -> Text.literal("§7  Fast mode: §f" + formatTime(fastTimeSeconds)), false);
+        source.sendSuccess(() -> Component.literal(""), false);
+        source.sendSuccess(() -> Component.literal("§7Estimated time:"), false);
+        source.sendSuccess(() -> Component.literal("§7  Safe mode: §f" + formatTime(safeTimeSeconds)), false);
+        source.sendSuccess(() -> Component.literal("§7  Fast mode: §f" + formatTime(fastTimeSeconds)), false);
 
         // Show clickable buttons
-        source.sendFeedback(() -> Text.literal(""), false);
+        source.sendSuccess(() -> Component.literal(""), false);
 
-        MutableText startButton = Text.literal("§a§l[START]")
+        MutableComponent startButton = Component.literal("§a§l[START]")
             .setStyle(Style.EMPTY
                 .withClickEvent(new ClickEvent.RunCommand("/spawnproof confirm " + radius))
-                .withHoverEvent(new HoverEvent.ShowText(Text.literal("Start in safe mode (10 buttons/sec)")))
+                .withHoverEvent(new HoverEvent.ShowText(Component.literal("Start in safe mode (10 buttons/sec)")))
             );
 
-        MutableText fastButton = Text.literal("§e§l[START FAST]")
+        MutableComponent fastButton = Component.literal("§e§l[START FAST]")
             .setStyle(Style.EMPTY
                 .withClickEvent(new ClickEvent.RunCommand("/spawnproof confirm " + radius + " fast"))
-                .withHoverEvent(new HoverEvent.ShowText(Text.literal("Start in fast mode (200 buttons/sec)")))
+                .withHoverEvent(new HoverEvent.ShowText(Component.literal("Start in fast mode (200 buttons/sec)")))
             );
 
-        MutableText buttons = Text.literal("").append(startButton).append(Text.literal("  ")).append(fastButton);
+        MutableComponent buttons = Component.literal("").append(startButton).append(Component.literal("  ")).append(fastButton);
 
-        MutableText cancelButton = Text.literal("§c[CANCEL]")
+        MutableComponent cancelButton = Component.literal("§c[CANCEL]")
             .setStyle(Style.EMPTY
-                .withHoverEvent(new HoverEvent.ShowText(Text.literal("Do nothing to cancel")))
+                .withHoverEvent(new HoverEvent.ShowText(Component.literal("Do nothing to cancel")))
             );
-        buttons.append(Text.literal("  ")).append(cancelButton);
+        buttons.append(Component.literal("  ")).append(cancelButton);
 
-        source.sendFeedback(() -> buttons, false);
+        source.sendSuccess(() -> buttons, false);
 
         return 1;
     }
@@ -227,41 +225,40 @@ public class SpawnProofCommand {
      * @param fastMode Whether to use fast mode (single-player only)
      * @return 1 on success, 0 on failure
      */
-    private static int executeConfirm(CommandContext<ServerCommandSource> context, int radius, boolean fastMode) {
-        ServerCommandSource source = context.getSource();
+    private static int executeConfirm(CommandContext<CommandSourceStack> context, int radius, boolean fastMode) {
+        CommandSourceStack source = context.getSource();
 
         // Validate: must be run by a player
-        if (!source.isExecutedByPlayer()) {
-            source.sendError(Text.literal("This command must be run by a player"));
+        if (!source.isPlayer()) {
+            source.sendFailure(Component.literal("This command must be run by a player"));
             return 0;
         }
 
-        ServerPlayerEntity player = source.getPlayer();
+        ServerPlayer player = source.getPlayer();
         if (player == null) {
-            source.sendError(Text.literal("Could not find player"));
+            source.sendFailure(Component.literal("Could not find player"));
             return 0;
         }
 
         // Check for existing active task
         if (SpawnProofTask.hasActiveTask(player)) {
-            source.sendError(Text.literal("You already have a spawnproof task running! Use /spawnproof stop to cancel it."));
+            source.sendFailure(Component.literal("You already have a spawnproof task running! Use /spawnproof stop to cancel it."));
             return 0;
         }
 
         // Fast mode warning for dedicated servers
-        if (fastMode && source.getServer().isDedicated()) {
-            source.sendFeedback(() -> Text.literal("§c⚠ Fast mode on dedicated server - may cause lag for other players"), false);
+        if (fastMode && source.getServer().isDedicatedServer()) {
+            source.sendSuccess(() -> Component.literal("§c⚠ Fast mode on dedicated server - may cause lag for other players"), false);
         }
 
         // Determine game mode
-        boolean isCreativeMode = source.getPermissions().hasPermission(
-            new Permission.Level(PermissionLevel.GAMEMASTERS));
+        boolean isCreativeMode = source.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER);
 
         // Check for buttons in survival mode
         if (!isCreativeMode) {
             int buttonsInInventory = countAllButtons(player);
             if (buttonsInInventory == 0) {
-                source.sendError(Text.literal("You have no buttons in your inventory!"));
+                source.sendFailure(Component.literal("You have no buttons in your inventory!"));
                 return 0;
             }
         }
@@ -269,7 +266,7 @@ public class SpawnProofCommand {
         // Start the task
         String modeText = isCreativeMode ? "OP Mode" : "Survival Mode";
         String speedText = fastMode ? "Fast" : "Safe";
-        source.sendFeedback(() -> Text.literal("§aStarting SpawnProof with radius " + radius + "... (" + modeText + ", " + speedText + " speed)"), false);
+        source.sendSuccess(() -> Component.literal("§aStarting SpawnProof with radius " + radius + "... (" + modeText + ", " + speedText + " speed)"), false);
 
         SpawnProofTask task = new SpawnProofTask(player, radius, isCreativeMode, fastMode);
         task.start();
@@ -288,13 +285,13 @@ public class SpawnProofCommand {
      * @param radius The radius in blocks
      * @return Count of spawnable blocks
      */
-    private static int countSpawnableBlocks(ServerPlayerEntity player, int radius) {
+    private static int countSpawnableBlocks(ServerPlayer player, int radius) {
         int count = 0;
-        ServerWorld world = (ServerWorld) player.getEntityWorld();
-        BlockPos center = player.getBlockPos();
+        ServerLevel world = (ServerLevel) player.level();
+        BlockPos center = player.blockPosition();
 
-        int minY = Math.max(world.getBottomY(), center.getY() - radius);
-        int maxY = Math.min(world.getTopYInclusive(), center.getY() + radius);
+        int minY = Math.max(world.getMinY(), center.getY() - radius);
+        int maxY = Math.min(world.getMaxY(), center.getY() + radius);
 
         for (int y = minY; y <= maxY; y++) {
             for (int x = center.getX() - radius; x <= center.getX() + radius; x++) {
@@ -334,9 +331,9 @@ public class SpawnProofCommand {
      * @param pos The position to check (where button would go)
      * @return true if this position is spawnable
      */
-    private static boolean isSpawnablePosition(ServerWorld world, BlockPos pos) {
+    private static boolean isSpawnablePosition(ServerLevel world, BlockPos pos) {
         // Skip unloaded chunks
-        if (!world.isChunkLoaded(pos)) {
+        if (!world.isLoaded(pos)) {
             return false;
         }
 
@@ -347,27 +344,27 @@ public class SpawnProofCommand {
         }
 
         // Block above must be air (mob headroom)
-        if (!world.getBlockState(pos.up()).isAir()) {
+        if (!world.getBlockState(pos.above()).isAir()) {
             return false;
         }
 
         // Block below must have a full solid top surface (mobs can stand on it)
-        BlockPos below = pos.down();
+        BlockPos below = pos.below();
         BlockState stateBelow = world.getBlockState(below);
 
         // Skip bedrock - mobs can't spawn on it
-        if (stateBelow.isOf(Blocks.BEDROCK)) {
+        if (stateBelow.is(Blocks.BEDROCK)) {
             return false;
         }
 
-        if (!stateBelow.isSideSolidFullSquare(world, below, Direction.UP)) {
+        if (!stateBelow.isFaceSturdy(world, below, Direction.UP)) {
             return false;
         }
 
         // Check if FLOOR button can be placed here (not default wall button!)
-        BlockState floorButton = Blocks.STONE_BUTTON.getDefaultState()
-            .with(ButtonBlock.FACE, BlockFace.FLOOR);
-        if (!floorButton.canPlaceAt(world, pos)) {
+        BlockState floorButton = Blocks.STONE_BUTTON.defaultBlockState()
+            .setValue(ButtonBlock.FACE, AttachFace.FLOOR);
+        if (!floorButton.canSurvive(world, pos)) {
             return false;
         }
 
@@ -384,11 +381,11 @@ public class SpawnProofCommand {
      * @param player The player whose inventory to check
      * @return Total count of all button items
      */
-    private static int countAllButtons(ServerPlayerEntity player) {
+    private static int countAllButtons(ServerPlayer player) {
         int count = 0;
         var inventory = player.getInventory();
-        for (int i = 0; i < inventory.size(); i++) {
-            ItemStack stack = inventory.getStack(i);
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
             if (isButton(stack)) {
                 count += stack.getCount();
             }
@@ -459,26 +456,26 @@ public class SpawnProofCommand {
      * @param context The command context
      * @return 1 (always succeeds)
      */
-    private static int executeHelp(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
+    private static int executeHelp(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
 
-        source.sendFeedback(() -> Text.literal("§6=== SpawnProof Commands ==="), false);
-        source.sendFeedback(() -> Text.literal("§e/spawnproof §7- Preview with default radius (" + DEFAULT_RADIUS + ")"), false);
-        source.sendFeedback(() -> Text.literal("§e/spawnproof <radius> §7- Preview with custom radius (" + MIN_RADIUS + "-" + MAX_RADIUS + ")"), false);
-        source.sendFeedback(() -> Text.literal("§e/spawnproof stop §7- Stop the current task"), false);
-        source.sendFeedback(() -> Text.literal("§e/spawnproof help §7- Show this help"), false);
-        source.sendFeedback(() -> Text.literal(""), false);
-        source.sendFeedback(() -> Text.literal("§6=== How It Works ==="), false);
-        source.sendFeedback(() -> Text.literal("§71. Run §e/spawnproof §7to scan for spawnable blocks"), false);
-        source.sendFeedback(() -> Text.literal("§72. Click §a[START] §7or §e[START FAST] §7to begin"), false);
-        source.sendFeedback(() -> Text.literal("§73. Run §e/spawnproof stop §7to cancel"), false);
-        source.sendFeedback(() -> Text.literal(""), false);
-        source.sendFeedback(() -> Text.literal("§6=== Speed Modes ==="), false);
-        source.sendFeedback(() -> Text.literal("§aSafe Mode:§7 10 buttons/sec (server-safe)"), false);
-        source.sendFeedback(() -> Text.literal("§eFast Mode:§7 200 buttons/sec (single-player only)"), false);
-        source.sendFeedback(() -> Text.literal(""), false);
-        source.sendFeedback(() -> Text.literal("§7Places stone buttons on spawnable surfaces."), false);
-        source.sendFeedback(() -> Text.literal("§7Perfect for Wither skeleton farms!"), false);
+        source.sendSuccess(() -> Component.literal("§6=== SpawnProof Commands ==="), false);
+        source.sendSuccess(() -> Component.literal("§e/spawnproof §7- Preview with default radius (" + DEFAULT_RADIUS + ")"), false);
+        source.sendSuccess(() -> Component.literal("§e/spawnproof <radius> §7- Preview with custom radius (" + MIN_RADIUS + "-" + MAX_RADIUS + ")"), false);
+        source.sendSuccess(() -> Component.literal("§e/spawnproof stop §7- Stop the current task"), false);
+        source.sendSuccess(() -> Component.literal("§e/spawnproof help §7- Show this help"), false);
+        source.sendSuccess(() -> Component.literal(""), false);
+        source.sendSuccess(() -> Component.literal("§6=== How It Works ==="), false);
+        source.sendSuccess(() -> Component.literal("§71. Run §e/spawnproof §7to scan for spawnable blocks"), false);
+        source.sendSuccess(() -> Component.literal("§72. Click §a[START] §7or §e[START FAST] §7to begin"), false);
+        source.sendSuccess(() -> Component.literal("§73. Run §e/spawnproof stop §7to cancel"), false);
+        source.sendSuccess(() -> Component.literal(""), false);
+        source.sendSuccess(() -> Component.literal("§6=== Speed Modes ==="), false);
+        source.sendSuccess(() -> Component.literal("§aSafe Mode:§7 10 buttons/sec (server-safe)"), false);
+        source.sendSuccess(() -> Component.literal("§eFast Mode:§7 200 buttons/sec (single-player only)"), false);
+        source.sendSuccess(() -> Component.literal(""), false);
+        source.sendSuccess(() -> Component.literal("§7Places stone buttons on spawnable surfaces."), false);
+        source.sendSuccess(() -> Component.literal("§7Perfect for Wither skeleton farms!"), false);
 
         return 1;
     }
@@ -489,27 +486,27 @@ public class SpawnProofCommand {
      * @param context The command context
      * @return 1 if a task was stopped, 0 if no task existed
      */
-    private static int executeStop(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
+    private static int executeStop(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
 
         // Validate: must be run by a player
-        if (!source.isExecutedByPlayer()) {
-            source.sendError(Text.literal("This command must be run by a player"));
+        if (!source.isPlayer()) {
+            source.sendFailure(Component.literal("This command must be run by a player"));
             return 0;
         }
 
-        ServerPlayerEntity player = source.getPlayer();
+        ServerPlayer player = source.getPlayer();
         if (player == null) {
-            source.sendError(Text.literal("Could not find player"));
+            source.sendFailure(Component.literal("Could not find player"));
             return 0;
         }
 
         // Attempt to stop the task
         if (SpawnProofTask.stopTask(player)) {
-            source.sendFeedback(() -> Text.literal("SpawnProof task stopped."), false);
+            source.sendSuccess(() -> Component.literal("SpawnProof task stopped."), false);
             return 1;
         } else {
-            source.sendError(Text.literal("No active spawnproof task to stop."));
+            source.sendFailure(Component.literal("No active spawnproof task to stop."));
             return 0;
         }
     }
