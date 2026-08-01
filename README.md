@@ -3,7 +3,7 @@
 A Minecraft Fabric mod that places buttons on all spawnable surfaces within a radius to prevent mob spawning. Perfect for Wither skeleton farms in the Nether.
 
 [![Modrinth](https://img.shields.io/modrinth/dt/nether-spawnproof?logo=modrinth&label=Modrinth)](https://modrinth.com/mod/nether-spawnproof)
-![Minecraft](https://img.shields.io/badge/Minecraft-1.21.11-green)
+![Minecraft](https://img.shields.io/badge/Minecraft-26.2-green)
 ![Fabric](https://img.shields.io/badge/Mod%20Loader-Fabric-blue)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
@@ -65,14 +65,14 @@ A block is considered spawnable if:
 
 ## Installation
 
-1. Install [Fabric Loader](https://fabricmc.net/use/installer/) for Minecraft 1.21.11
+1. Install [Fabric Loader](https://fabricmc.net/use/installer/) for Minecraft 26.2
 2. Install [Fabric API](https://modrinth.com/mod/fabric-api)
 3. Download the latest release from [Releases](https://github.com/manchesterjm/Nether_Spawnproof_Minecraft_Mod/releases)
 4. Place the `.jar` file in your `mods` folder
 
 ## Building from Source
 
-Requires Java 21 and Gradle.
+Requires Java 25 and Gradle.
 
 ```bash
 git clone https://github.com/manchesterjm/Nether_Spawnproof_Minecraft_Mod.git
@@ -84,7 +84,7 @@ The built jar will be in `build/libs/`.
 
 ## Dependencies
 
-- Minecraft 1.21.11
+- Minecraft 26.2
 - Fabric Loader 0.18.4+
 - Fabric API 0.140.2+
 

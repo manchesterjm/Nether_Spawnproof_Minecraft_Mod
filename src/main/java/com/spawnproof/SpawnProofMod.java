@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
  *   <li>Progress updates every 500 buttons</li>
  * </ul>
  *
- * @author Claude Code
+ * @author manchesterjm
  * @version 1.0.0
  */
 public class SpawnProofMod implements ModInitializer {

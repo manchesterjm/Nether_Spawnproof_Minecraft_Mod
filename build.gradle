@@ -1,9 +1,9 @@
 plugins {
-    id 'fabric-loom' version '1.13.6'
+    id 'net.fabricmc.fabric-loom' version '1.17-SNAPSHOT'
     id 'java'
 }
 
-version = "1.0.1"
+version = "1.1.0"
 group = "com.spawnproof"
 
 base {
@@ -15,12 +15,11 @@ repositories {
 }
 
 dependencies {
-    minecraft "com.mojang:minecraft:1.21.11"
-    mappings "net.fabricmc:yarn:1.21.11+build.3:v2"
-    modImplementation "net.fabricmc:fabric-loader:0.18.4"
+    minecraft "com.mojang:minecraft:26.2"
+    implementation "net.fabricmc:fabric-loader:0.19.3"
 
     // Fabric API
-    modImplementation "net.fabricmc.fabric-api:fabric-api:0.140.2+1.21.11"
+    implementation "net.fabricmc.fabric-api:fabric-api:0.156.0+26.2"
 }
 
 processResources {
@@ -32,12 +31,12 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-    options.release = 21
+    options.release = 25
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
 jar {

@@ -1,18 +1,18 @@
 package com.spawnproof;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.ButtonBlock;
-import net.minecraft.block.enums.BlockFace;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ButtonBlock;
+import net.minecraft.world.level.block.state.properties.AttachFace;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.network.chat.Component;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,7 +40,7 @@ import java.util.UUID;
  *   <li><b>Survival Mode:</b> Buttons consumed from player inventory as placed</li>
  * </ul>
  *
- * @author Claude Code
+ * @author manchesterjm
  * @version 1.0.0
  * @see SpawnProofCommand
  */
@@ -73,7 +73,7 @@ public class SpawnProofTask {
     // =========================================================================
 
     /** The player who initiated this task. */
-    private final ServerPlayerEntity player;
+    private final ServerPlayer player;
 
     /** UUID of the player. */
     private final UUID playerId;
@@ -85,7 +85,7 @@ public class SpawnProofTask {
     private final BlockPos center;
 
     /** The world to place buttons in. */
-    private final ServerWorld world;
+    private final ServerLevel world;
 
     /** Whether player is in creative mode (OP). */
     private final boolean isCreativeMode;
@@ -129,12 +129,12 @@ public class SpawnProofTask {
      * @param isCreativeMode Whether the player is in creative/OP mode
      * @param fastMode Whether to use fast placement mode
      */
-    public SpawnProofTask(ServerPlayerEntity player, int radius, boolean isCreativeMode, boolean fastMode) {
+    public SpawnProofTask(ServerPlayer player, int radius, boolean isCreativeMode, boolean fastMode) {
         this.player = player;
-        this.playerId = player.getUuid();
+        this.playerId = player.getUUID();
         this.radius = radius;
-        this.center = player.getBlockPos();
-        this.world = (ServerWorld) player.getEntityWorld();
+        this.center = player.blockPosition();
+        this.world = (ServerLevel) player.level();
         this.isCreativeMode = isCreativeMode;
         this.fastMode = fastMode;
     }
@@ -151,7 +151,7 @@ public class SpawnProofTask {
         positions = buildPositionList();
 
         if (positions.isEmpty()) {
-            player.sendMessage(Text.literal("§eNo spawnable blocks found in the area!"), false);
+            player.sendSystemMessage(Component.literal("§eNo spawnable blocks found in the area!"), false);
             return;
         }
 
@@ -159,7 +159,7 @@ public class SpawnProofTask {
         ACTIVE_TASKS.put(playerId, this);
         startTime = System.currentTimeMillis();
 
-        player.sendMessage(Text.literal("§7Found §f" + positions.size() + " §7spawnable blocks. Starting..."), false);
+        player.sendSystemMessage(Component.literal("§7Found §f" + positions.size() + " §7spawnable blocks. Starting..."), false);
 
         // Register tick handler
         if (!registered) {
@@ -174,8 +174,8 @@ public class SpawnProofTask {
      * @param player The player to check
      * @return true if the player has an active task
      */
-    public static boolean hasActiveTask(ServerPlayerEntity player) {
-        return ACTIVE_TASKS.containsKey(player.getUuid());
+    public static boolean hasActiveTask(ServerPlayer player) {
+        return ACTIVE_TASKS.containsKey(player.getUUID());
     }
 
     /**
@@ -184,10 +184,10 @@ public class SpawnProofTask {
      * @param player The player whose task to stop
      * @return true if a task was stopped
      */
-    public static boolean stopTask(ServerPlayerEntity player) {
-        SpawnProofTask task = ACTIVE_TASKS.remove(player.getUuid());
+    public static boolean stopTask(ServerPlayer player) {
+        SpawnProofTask task = ACTIVE_TASKS.remove(player.getUUID());
         if (task != null) {
-            task.player.sendMessage(Text.literal("§eSpawnProof stopped. Placed §f" + task.buttonsPlaced + " §ebuttons."), false);
+            task.player.sendSystemMessage(Component.literal("§eSpawnProof stopped. Placed §f" + task.buttonsPlaced + " §ebuttons."), false);
             return true;
         }
         return false;
@@ -253,7 +253,7 @@ public class SpawnProofTask {
         if (buttonsPlaced - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL) {
             lastProgressUpdate = buttonsPlaced;
             int remaining = positions.size() - currentIndex;
-            player.sendMessage(Text.literal("§7Progress: §f" + buttonsPlaced + " §7placed, §f" + remaining + " §7remaining..."), false);
+            player.sendSystemMessage(Component.literal("§7Progress: §f" + buttonsPlaced + " §7placed, §f" + remaining + " §7remaining..."), false);
         }
     }
 
@@ -269,8 +269,8 @@ public class SpawnProofTask {
     private List<BlockPos> buildPositionList() {
         List<BlockPos> list = new ArrayList<>();
 
-        int minY = Math.max(world.getBottomY(), center.getY() - radius);
-        int maxY = Math.min(world.getTopYInclusive(), center.getY() + radius);
+        int minY = Math.max(world.getMinY(), center.getY() - radius);
+        int maxY = Math.min(world.getMaxY(), center.getY() + radius);
 
         for (int y = minY; y <= maxY; y++) {
             for (int x = center.getX() - radius; x <= center.getX() + radius; x++) {
@@ -307,7 +307,7 @@ public class SpawnProofTask {
      */
     private boolean isValidPosition(BlockPos pos) {
         // Skip unloaded chunks
-        if (!world.isChunkLoaded(pos)) {
+        if (!world.isLoaded(pos)) {
             return false;
         }
 
@@ -318,27 +318,27 @@ public class SpawnProofTask {
         }
 
         // Block above must be air (mob headroom)
-        if (!world.getBlockState(pos.up()).isAir()) {
+        if (!world.getBlockState(pos.above()).isAir()) {
             return false;
         }
 
         // Block below must have a full solid top surface (mobs can stand on it)
-        BlockPos below = pos.down();
+        BlockPos below = pos.below();
         BlockState stateBelow = world.getBlockState(below);
 
         // Skip bedrock - mobs can't spawn on it
-        if (stateBelow.isOf(Blocks.BEDROCK)) {
+        if (stateBelow.is(Blocks.BEDROCK)) {
             return false;
         }
 
-        if (!stateBelow.isSideSolidFullSquare(world, below, Direction.UP)) {
+        if (!stateBelow.isFaceSturdy(world, below, Direction.UP)) {
             return false;
         }
 
         // Check if FLOOR button can be placed here (not default wall button!)
-        BlockState floorButton = Blocks.STONE_BUTTON.getDefaultState()
-            .with(ButtonBlock.FACE, BlockFace.FLOOR);
-        if (!floorButton.canPlaceAt(world, pos)) {
+        BlockState floorButton = Blocks.STONE_BUTTON.defaultBlockState()
+            .setValue(ButtonBlock.FACE, AttachFace.FLOOR);
+        if (!floorButton.canSurvive(world, pos)) {
             return false;
         }
 
@@ -357,9 +357,9 @@ public class SpawnProofTask {
      */
     private void placeButton(BlockPos pos, Block buttonBlock) {
         // Place the button (floor button facing up)
-        BlockState buttonState = buttonBlock.getDefaultState()
-            .with(ButtonBlock.FACE, BlockFace.FLOOR);
-        world.setBlockState(pos, buttonState);
+        BlockState buttonState = buttonBlock.defaultBlockState()
+            .setValue(ButtonBlock.FACE, AttachFace.FLOOR);
+        world.setBlock(pos, buttonState, Block.UPDATE_ALL);
     }
 
     /**
@@ -370,14 +370,14 @@ public class SpawnProofTask {
     private Block consumeButton() {
         var inventory = player.getInventory();
 
-        for (int i = 0; i < inventory.size(); i++) {
-            ItemStack stack = inventory.getStack(i);
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
             if (!stack.isEmpty() && stack.getItem() instanceof BlockItem blockItem) {
                 Block block = blockItem.getBlock();
                 if (block instanceof ButtonBlock) {
-                    stack.decrement(1);
+                    stack.shrink(1);
                     if (stack.isEmpty()) {
-                        inventory.setStack(i, ItemStack.EMPTY);
+                        inventory.setItem(i, ItemStack.EMPTY);
                     }
                     return block;
                 }
@@ -400,9 +400,9 @@ public class SpawnProofTask {
         long elapsed = System.currentTimeMillis() - startTime;
         double seconds = elapsed / 1000.0;
 
-        player.sendMessage(Text.literal("§a✓ SpawnProof complete!"), false);
-        player.sendMessage(Text.literal("§7  Buttons placed: §f" + buttonsPlaced), false);
-        player.sendMessage(Text.literal("§7  Time: §f" + String.format("%.1f", seconds) + " seconds"), false);
+        player.sendSystemMessage(Component.literal("§a✓ SpawnProof complete!"), false);
+        player.sendSystemMessage(Component.literal("§7  Buttons placed: §f" + buttonsPlaced), false);
+        player.sendSystemMessage(Component.literal("§7  Time: §f" + String.format("%.1f", seconds) + " seconds"), false);
     }
 
     /**
@@ -415,10 +415,10 @@ public class SpawnProofTask {
         int stacks = remaining / BUTTONS_PER_STACK;
         int remainder = remaining % BUTTONS_PER_STACK;
 
-        player.sendMessage(Text.literal("§c⚠ Ran out of buttons!"), false);
-        player.sendMessage(Text.literal("§7  Buttons placed: §f" + buttonsPlaced), false);
-        player.sendMessage(Text.literal("§7  Still needed: §f" + remaining + " §7(" + formatStacks(stacks, remainder) + ")"), false);
-        player.sendMessage(Text.literal("§7  Craft more buttons and run §e/spawnproof §7again."), false);
+        player.sendSystemMessage(Component.literal("§c⚠ Ran out of buttons!"), false);
+        player.sendSystemMessage(Component.literal("§7  Buttons placed: §f" + buttonsPlaced), false);
+        player.sendSystemMessage(Component.literal("§7  Still needed: §f" + remaining + " §7(" + formatStacks(stacks, remainder) + ")"), false);
+        player.sendSystemMessage(Component.literal("§7  Craft more buttons and run §e/spawnproof §7again."), false);
     }
 
     /**
