@@ -1,0 +1,24 @@
+{
+    "schemaVersion": 1,
+    "id": "spawnproof",
+    "version": "${version}",
+    "name": "SpawnProof",
+    "description": "Spawn-proof large areas by placing stone buttons on all spawnable surfaces. Perfect for Nether farms.",
+    "authors": ["manchesterjm"],
+    "contact": {
+        "sources": "https://github.com/manchesterjm/Nether_Spawnproof_Minecraft_Mod"
+    },
+    "license": "MIT",
+    "icon": "assets/spawnproof/icon.png",
+    "environment": "*",
+    "entrypoints": {
+        "main": ["com.spawnproof.SpawnProofMod"]
+    },
+    "mixins": [],
+    "depends": {
+        "fabricloader": ">=0.18.0",
+        "minecraft": ">=1.21.11",
+        "java": ">=25",
+        "fabric-api": "*"
+    }
+}
